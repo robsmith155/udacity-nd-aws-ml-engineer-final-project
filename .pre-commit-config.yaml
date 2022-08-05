@@ -1,0 +1,25 @@
+# The pre-commit package allows us to automatically create Git hooks that
+# will run when we commit things locally. In this case I will add things 
+# for linting the code using isort, black and flake 8. Note that this 
+# config file is from this article: https://rohitgupta.xyz/blog/keeping-python-code-clean-with-pre-commit-hooks-black-flake8-and-isort/
+
+repos:
+-   repo: https://github.com/asottile/seed-isort-config
+    rev: v2.2.0
+    hooks:
+    - id: seed-isort-config
+-   repo: https://github.com/pre-commit/mirrors-isort
+    rev: v5.10.1
+    hooks:
+    - id: isort
+-   repo: https://github.com/ambv/black
+    #rev: 21.12b0
+    rev: 22.6.0
+    hooks:
+    - id: black
+      language_version: python3.8
+-   repo: https://gitlab.com/pycqa/flake8
+    #rev: '3.9.2'
+    rev: '5.0.1'
+    hooks:
+    - id: flake8

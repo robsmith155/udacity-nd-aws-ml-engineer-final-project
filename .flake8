@@ -1,0 +1,10 @@
+[flake8]
+exclude =
+    # No need to traverse our git directory
+    .git,
+    # There's no value in checking cache directories
+    __pycache__
+max-complexity = 18
+max-line-length = 79
+select = E9,F63,F7,F82
+ignore = E402,E501
