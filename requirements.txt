@@ -1,0 +1,18 @@
+torch==1.11.0+cu113
+torchvision==0.12.0+cu113
+torchaudio==0.11.0
+monai[all]
+sagemaker[local]
+boto3
+wandb
+matplotlib
+seaborn
+notebook
+pytorch-lightning
+torchsummary
+ipywidgets
+kaggle
+scikit-learn
+PyYAML
+pre-commit
+--extra-index-url https://download.pytorch.org/whl/cu113
