@@ -15,4 +15,5 @@ kaggle
 scikit-learn
 PyYAML
 pre-commit
+natsort
 --extra-index-url https://download.pytorch.org/whl/cu113
