@@ -183,3 +183,4 @@ def make_patient_data_gif(
         fps=10,
         loop=0,
     )
+    print(f"GIF file output to {output_path}.")
