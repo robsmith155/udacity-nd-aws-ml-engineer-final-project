@@ -10,6 +10,7 @@ from typing import List, Union
 from zipfile import ZipFile
 
 import yaml
+from natsort import natsorted
 from sklearn.model_selection import train_test_split
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
@@ -130,10 +131,37 @@ def move_data_folders(
         logging.info(f"Moved {folder} to {output_path}.")
 
 
-def extract_input_filepaths(
+def extract_patient_filepaths(
+    patient_data_path: Union[str, pathlib.Path]
+) -> List[dict]:
+    """Output list of dictionaries for patient MRI and mask data.
+
+    Args:
+        patient_data_path (Union[str, pathlib.Path]): Path containing patient data.
+
+    Returns:
+        List[dict]: List of dictionariees with path to input MRI image and corresponding segmentation mask.
+    """
+
+    all_files = []
+    for root, folders, files in os.walk(patient_data_path):
+        for file in natsorted(files):
+            if file.endswith("_mask.tif") is False:
+                file_mask = file[:-4] + "_mask.tif"
+                if file_mask in files:
+                    all_files.append(
+                        {
+                            "image": f"{root}/{file}",
+                            "mask": f"{root}/{file_mask}",
+                        }
+                    )
+    return all_files
+
+
+def extract_dataset_filepaths(
     data_dir_paths: List[Union[str, pathlib.Path]]
 ) -> List[dict]:
-    """Returns a list of dictionaries with corresponding image and mask file paths.
+    """Returns a list of dictionaries with corresponding image and mask file paths for an entire dataset.
 
     Args:
         data_dir_paths (List[Union[str, pathlib.Path]]): List containing paths to patient data.
