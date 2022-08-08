@@ -9,6 +9,7 @@ import sys
 from typing import List, Union
 from zipfile import ZipFile
 
+import sagemaker
 import yaml
 from natsort import natsorted
 from sklearn.model_selection import train_test_split
@@ -205,11 +206,17 @@ def setup_brain_mri_dataset(data_root_path: Union[str, pathlib.Path]) -> None:
     else:
         logging.info("Data already downloaded from Kaggle. Skipping download.")
 
-    if not os.path.isdir(os.path.join(data_root_path, "train")):
+    if not os.path.isdir(
+        os.path.join(data_root_path, "brain-mri-dataset/train")
+    ):
         # Split patients into training, validation and test folders
         logging.info(
             "Starting splitting of data into train, val and test datasets."
         )
+        brain_mri_dataset_path = os.path.join(
+            data_root_path, "brain-mri-dataset"
+        )
+        subprocess.run(["mkdir", "-p", brain_mri_dataset_path])
         extracted_data_path = os.path.join(
             data_root_path, "lgg-mri-segmentation/kaggle_3m"
         )
@@ -226,7 +233,7 @@ def setup_brain_mri_dataset(data_root_path: Union[str, pathlib.Path]) -> None:
             [train_patient_paths, val_patient_paths, test_patient_paths],
             ["train", "val", "test"],
         ):
-            output_path = os.path.join(data_root_path, dataset_name)
+            output_path = os.path.join(brain_mri_dataset_path, dataset_name)
             move_data_folders(
                 dataset_paths=dataset_paths, output_path=output_path
             )
@@ -237,3 +244,34 @@ def setup_brain_mri_dataset(data_root_path: Union[str, pathlib.Path]) -> None:
         logging.info(
             "Training, validation and test datasets already prepared. Skipping step."
         )
+
+
+def upload_data_to_s3(bucket_name, local_dataset_path, key_prefix="data"):
+    sagemaker_session = sagemaker.Session(default_bucket=bucket_name)
+    sagemaker_session.default_bucket(), sagemaker_session._region_name
+    try:
+        num_files = len(
+            sagemaker_session.list_s3_files(
+                bucket=bucket_name, key_prefix=key_prefix
+            )
+        )
+        if num_files == 7858:
+            logging.info(
+                f"Data already uploaded to s3://{bucket_name}/{key_prefix}. Skipping this step."
+            )
+        else:
+            logging.info(
+                f"Expected 7858 files, but found {num_files}. Starting data upload."
+            )
+            bucket_data_path = sagemaker_session.upload_data(
+                path=local_dataset_path, bucket=bucket_name, key_prefix="data"
+            )
+            logging.info(f"Data has been uploaded to: {bucket_data_path}")
+    except:  # BETTER TO PUT SPECIFIC NoSuchBucket error, but not sure how?
+        logging.info(
+            f"Bucket named {bucket_name} doesnt exist. Starting upload to S3"
+        )
+        bucket_data_path = sagemaker_session.upload_data(
+            path=local_dataset_path, bucket=bucket_name, key_prefix="data"
+        )
+        logging.info(f"Data has been uploaded to: {bucket_data_path}")

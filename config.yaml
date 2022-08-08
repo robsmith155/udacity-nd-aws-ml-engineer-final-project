@@ -2,3 +2,5 @@ DATA_ROOT_PATH: ./data
 DATA_ZIP_FILENAME: lgg-mri-segmentation.zip
 DUMMY_IAM_ROLE: arn:aws:iam::111111111111:role/service-role/AmazonSageMaker-ExecutionRole-20200101T000001
 KAGGLE_DATASET: mateuszbuda/lgg-mri-segmentation
+RUN_MODE: sagemaker
+S3_BUCKET_NAME: sagemaker-brain-mri

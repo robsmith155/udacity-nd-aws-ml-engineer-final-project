@@ -210,8 +210,8 @@ def plot_monai_transformed_data(
         mask = mask.astype(np.uint8)
 
     if transpose:
-        img = np.transpose(img, (1, 2, 0))
-        mask = np.transpose(mask, (1, 2, 0))
+        img = np.transpose(img, (2, 1, 0))
+        mask = np.transpose(mask, (2, 1, 0))
 
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
