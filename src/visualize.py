@@ -228,7 +228,7 @@ def plot_monai_transformed_data(
 def plot_monai_pipeline_data(
     data_dict: dict, transform_pipeline: monai.transforms.Compose
 ) -> None:
-    """Plots input image and mask and four different augmented views after data passed through transformation pipeline.
+    """Plots input image and mask and four different augmented views after data passed through MONAI transformation pipeline.
 
     Args:
         data_dict (dict): Dictionary containing the path to the image and mask data. Keys must be 'image' and 'mask'.

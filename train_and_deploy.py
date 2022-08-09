@@ -20,6 +20,8 @@ def main():
     # PREPARE DATASET
     create_kaggle_token_file()
     setup_brain_mri_dataset(data_root_path=config["DATA_ROOT_PATH"])
+
+    # UPLOAD DATA TO S3 BUCKET
     if config["RUN_MODE"] == "sagemaker":
         upload_data_to_s3(
             bucket_name=config["S3_BUCKET_NAME"],
