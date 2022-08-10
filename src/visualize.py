@@ -193,7 +193,10 @@ def make_patient_data_gif(
 
 
 def plot_monai_transformed_data(
-    data_dict: dict, transpose: bool = True, convert_uint8: bool = True
+    data_dict: dict,
+    transpose: bool = True,
+    convert_uint8: bool = True,
+    raw_data: bool = False,
 ) -> None:
     """Plot of MRI image and segmentation mask output from MONAI transform
 
@@ -212,6 +215,10 @@ def plot_monai_transformed_data(
     if transpose:
         img = np.transpose(img, (2, 1, 0))
         mask = np.transpose(mask, (2, 1, 0))
+
+    if raw_data:
+        img = np.transpose(img, (1, 0, 2))
+        mask = np.transpose(mask, (1, 0))
 
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)

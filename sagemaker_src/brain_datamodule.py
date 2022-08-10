@@ -3,14 +3,17 @@ import os
 import pytorch_lightning as pl
 from monai.data import CacheDataset, DataLoader, ThreadDataLoader
 from monai.transforms import (
+    CenterSpatialCropd,
     Compose,
     EnsureChannelFirstd,
     EnsureTyped,
     LoadImaged,
+    RandFlipd,
     RandGaussianNoised,
     RandRotated,
     RandScaleIntensityd,
     RandShiftIntensityd,
+    RandSpatialCropd,
     ScaleIntensityRanged,
     ToDeviced,
 )
@@ -63,8 +66,12 @@ def monai_transformations(fast_mode=False, device="cuda:0"):
         )
 
     random_transforms = [
+        RandFlipd(keys=["image", "mask"], spatial_axis=0, prob=0.5),
         RandRotated(
             keys=["image", "mask"], range_x=0.26, range_y=0.26, prob=0.5
+        ),
+        RandSpatialCropd(
+            keys=["image", "mask"], roi_size=(224, 224), random_size=False
         ),
         RandScaleIntensityd(keys=["image"], factors=0.1, prob=0.5),
         RandShiftIntensityd(keys=["image"], offsets=0.1, prob=0.5),
@@ -84,6 +91,7 @@ def monai_transformations(fast_mode=False, device="cuda:0"):
             b_min=0.0,
             b_max=1.0,
         ),
+        CenterSpatialCropd(keys=["image", "mask"], roi_size=(224, 224)),
     ]
 
     if fast_mode:

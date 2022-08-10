@@ -137,7 +137,7 @@ def main(args):
         precision=16,
         accelerator="gpu",
         devices=1,
-        max_epochs=2,
+        max_epochs=20,
         default_root_dir=args.output_dir,
         callbacks=[checkpoint_callback, early_stop_callback],
         logger=pl.loggers.CSVLogger(save_dir=args.output_dir),
