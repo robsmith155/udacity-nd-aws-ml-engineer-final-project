@@ -1,5 +1,7 @@
-# Ignore the data folder
+# Ignore data and output folders
 data/
+outputs/
+code/
 
 # Ignore any files or folders starting with tmp
 tmp*/

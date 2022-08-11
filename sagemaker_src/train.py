@@ -116,7 +116,8 @@ def main(args):
         mode="max",
         dirpath=args.model_dir,
         # filename="model-{epoch:02d}-{val_mean_dice:.2f}",
-        filename="model-{epoch:02d}",
+        # filename="model-{epoch:02d}",
+        filename="model",
     )
 
     early_stop_callback = pl.callbacks.EarlyStopping(
@@ -137,7 +138,7 @@ def main(args):
         precision=16,
         accelerator="gpu",
         devices=1,
-        max_epochs=20,
+        max_epochs=2,
         default_root_dir=args.output_dir,
         callbacks=[checkpoint_callback, early_stop_callback],
         logger=pl.loggers.CSVLogger(save_dir=args.output_dir),
@@ -153,6 +154,13 @@ def main(args):
     #      gradient_clip_val=0.5)
 
     trainer.fit(model, datamodule=brain_dm)
+
+
+def model_fn(model_dir):
+    model_path = os.path.join(model_dir, "model.ckpt")
+
+    model = MyModel.load_from_checkpoint(checkpoint_path=model_path)
+    return model
 
 
 if __name__ == "__main__":
