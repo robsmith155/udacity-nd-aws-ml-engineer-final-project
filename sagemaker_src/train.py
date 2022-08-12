@@ -1,77 +1,27 @@
 import argparse
 import os
 
-import numpy as np
 import pytorch_lightning as pl
+import torch
 from brain_datamodule import BrainMRIData, monai_transformations
 from brain_model import MyModel
-from monai.losses import DiceCELoss, DiceFocalLoss, DiceLoss
-from monai.metrics import DiceMetric
+from monai.losses import DiceCELoss, DiceFocalLoss
 from monai.networks.nets import UNet
-from monai.transforms import (
-    Activations,
-    AsDiscrete,
-    Compose,
-    EnsureChannelFirstd,
-    EnsureType,
-    EnsureTyped,
-    LoadImage,
-    LoadImaged,
-    LoadImageD,
-    NormalizeIntensityd,
-    RandFlipd,
-    RandGaussianNoised,
-    RandRotated,
-    RandScaleIntensityd,
-    RandShiftIntensityd,
-    Resized,
-    ScaleIntensityd,
-    ScaleIntensityRanged,
-    ToDeviced,
-)
-from torch.optim import AdamW
+
+
+# Function below copied from : https://github.com/awslabs/sagemaker-debugger/blob/master/examples/tensorflow/sagemaker_byoc/simple.py
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
 def main(args):
-    # train_transforms = Compose([
-    #     LoadImaged(keys=['image', 'label']),
-    #     EnsureChannelFirstd(keys=["image", "label"]),
-    #     #ScaleIntensityd(keys=['image'], minv=0.0, maxv=1.0, channel_wise=True),
-    #     NormalizeIntensityd(keys=['label'], subtrahend=0, divisor=255.),
-    #     NormalizeIntensityd(keys=["image"], subtrahend=np.array([23.78265792, 21.26016139, 22.85558883]), divisor=np.array([29.7563088, 28.0201569, 30.0995603]), channel_wise=True),
-    #     EnsureTyped(keys=["image", "label"]),
-    #     ToDeviced(keys=['image', 'label'], device='cuda'),
-    #     RandFlipd(keys=['image', 'label'])
-    # ])
-    # train_transforms = Compose([
-    #     LoadImaged(keys=['image', 'mask']),
-    #     EnsureChannelFirstd(keys=['image', 'mask']),
-    #     EnsureTyped(keys=["image", "mask"]),
-    #     ToDeviced(keys=['image', 'mask'], device='cuda:0'),
-    #     RandRotated(keys=['image', 'mask'], range_x=0.26, range_y=0.26, prob=0.5),
-    #     ScaleIntensityRanged(keys=['image', 'mask'], a_min=0., a_max=255., b_min=0., b_max=1.),
-    #     RandScaleIntensityd(keys=['image'], factors=0.1, prob=0.5),
-    #     RandShiftIntensityd(keys=['image'], offsets=0.1, prob=0.5),
-    #     RandGaussianNoised(keys=['image'], mean=0., std=0.1, prob=0.5)
-    # ])
-
-    # val_transforms = Compose([
-    #     LoadImaged(keys=['image', 'label']),
-    #     EnsureChannelFirstd(keys=["image", "label"]),
-    #     #ScaleIntensityd(keys=['image'], minv=0.0, maxv=1.0, channel_wise=True),
-    #     NormalizeIntensityd(keys=["image"], subtrahend=np.array([23.78265792, 21.26016139, 22.85558883]), divisor=np.array([29.7563088, 28.0201569, 30.0995603]), channel_wise=True),
-    #     NormalizeIntensityd(keys=['label'], subtrahend=0, divisor=255.),
-    #     EnsureTyped(keys=["image", "label"]),
-    #     ToDeviced(keys=['image', 'label'], device='cuda')   # have device check at start and replace here with DEVICE
-    # ])
-
-    # val_transforms = Compose([
-    #     LoadImaged(keys=['image', 'mask']),
-    #     EnsureChannelFirstd(keys=['image', 'mask']),
-    #     EnsureTyped(keys=["image", "mask"]),
-    #     ScaleIntensityRanged(keys=['image', 'mask'], a_min=0., a_max=255., b_min=0., b_max=1.),
-    #     ToDeviced(keys=['image', 'mask'], device='cuda:0')
-    # ])
 
     train_transforms, val_transforms = monai_transformations(fast_mode=True)
 
@@ -83,30 +33,35 @@ def main(args):
         train_transforms=train_transforms,
         val_transforms=val_transforms,
         batch_size=args.batch_size,
-        fast_mode=True,
+        fast_mode=args.fast_mode,
     )
-
+    filters1 = args.num_filters_block_1
     unet = UNet(
         dimensions=2,
         in_channels=3,
         out_channels=1,
-        channels=(32, 64, 128, 256, 512),
+        channels=(
+            filters1,
+            filters1 * 2,
+            filters1 * 4,
+            filters1 * 8,
+            filters1 * 16,
+        ),
         strides=(2, 2, 2, 2),
         num_res_units=2,
+        dropout=args.dropout_rate,
     )
 
-    max_epochs = 40
     loss_function = DiceFocalLoss(to_onehot_y=False, sigmoid=True)
-    optimizer = AdamW
+    optimizer = torch.optim.AdamW
 
     model = MyModel(
         net=unet,
         criterion=loss_function,
-        learning_rate=1e-4,
+        learning_rate=args.lr,
         batch_size=args.batch_size,
         optimizer_class=optimizer,
         # lr_scheduler=lr_scheduler
-        # batch_size=16
     )
 
     # saves top-K checkpoints based on "val_loss" metric
@@ -115,8 +70,6 @@ def main(args):
         monitor="val_mean_dice",
         mode="max",
         dirpath=args.model_dir,
-        # filename="model-{epoch:02d}-{val_mean_dice:.2f}",
-        # filename="model-{epoch:02d}",
         filename="model",
     )
 
@@ -130,28 +83,16 @@ def main(args):
 
     swa_callback = pl.callbacks.StochasticWeightAveraging(swa_lrs=1e-2)
 
-    # trainer = pl.Trainer(precision=16, accelerator='gpu', devices=1, max_epochs=40,
-    #     default_root_dir='./checkpoints', callbacks=[early_stop_callback],
-    #     logger=pl.loggers.CSVLogger(save_dir=f"{args.output_dir}/logs/"), gradient_clip_val=0.5)
-
     trainer = pl.Trainer(
         precision=16,
         accelerator="gpu",
         devices=1,
-        max_epochs=2,
+        max_epochs=args.max_epochs,
         default_root_dir=args.output_dir,
         callbacks=[checkpoint_callback, early_stop_callback],
         logger=pl.loggers.CSVLogger(save_dir=args.output_dir),
         gradient_clip_val=0.5,
     )
-
-    # trainer = pl.Trainer(precision=16, accelerator='cpu', devices=1, max_epochs=40,
-    #     default_root_dir='./checkpoints', callbacks=[checkpoint_callback, early_stop_callback],
-    #     logger=pl.loggers.CSVLogger(save_dir="logs/"), gradient_clip_val=0.5)
-
-    # trainer = pl.Trainer(precision=16, accelerator='gpu', devices=1, max_epochs=4,
-    #     default_root_dir=args.output_dir, callbacks=[checkpoint_callback, early_stop_callback],
-    #      gradient_clip_val=0.5)
 
     trainer.fit(model, datamodule=brain_dm)
 
@@ -198,7 +139,36 @@ if __name__ == "__main__":
         default=16,
         help="DataLoader batch size.",
     )
-
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=0.001,
+        help="Optimizer learning rate.",
+    )
+    parser.add_argument(
+        "--max_epochs",
+        type=int,
+        default=50,
+        help="Maximum number of epochs to run model training.",
+    )
+    parser.add_argument(
+        "--dropout_rate",
+        type=float,
+        default=0.1,
+        help="Dropout ratio.",
+    )
+    parser.add_argument(
+        "--num_filters_block_1",
+        type=int,
+        default=32,
+        help="Number of filters to use first block of network.",
+    )
+    parser.add_argument(
+        "--fast_mode",
+        type=str2bool,
+        default=True,
+        help="Whether to run fast training mode (e.g. moving all data to GPU).",
+    )
     args = parser.parse_args()  # check what parse_known_args() does
 
     main(args)

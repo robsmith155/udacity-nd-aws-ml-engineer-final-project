@@ -1,7 +1,12 @@
+import logging
+
 import pytorch_lightning as pl
 import torch
 from monai.metrics import DiceMetric
 from monai.transforms import Activations, AsDiscrete, Compose, EnsureType
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
+logger = logging.getLogger()
 
 
 class MyModel(pl.LightningModule):
@@ -67,6 +72,7 @@ class MyModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
+        val_batch_size = len(batch)
         y_hat, y_true = self.infer_batch(batch)
         loss = self.criterion(y_hat, y_true)
         self.log("batch_size", self.batch_size)
@@ -81,17 +87,27 @@ class MyModel(pl.LightningModule):
         y_hat = post_trans(y_hat)
         # val_outputs = [post_trans(i) for i in decollate_batch(val_outputs)]
         self.dice_metric(y_pred=y_hat, y=y_true)
-        self.dice_metric_batch(y_pred=y_hat, y=y_true)
-        metric = self.dice_metric.aggregate().item()
+        return {"val_loss": loss, "val_samples": val_batch_size}
+
+    def validation_epoch_end(self, outputs):
+        val_loss, num_samples = 0, 0
+        for output in outputs:
+            val_loss += output["val_loss"].sum().item()
+            num_samples += output["val_samples"]
+        val_mean_loss = torch.tensor(val_loss / num_samples)
+        val_mean_dice = self.dice_metric.aggregate().item()
+
         # metric_values.append(metric)
         # metric_batch = self.dice_metric_batch.aggregate() # CHECK THIS
 
-        self.log("val_mean_dice", metric, prog_bar=True)  # CHECK THIS
+        self.log("val_mean_dice", val_mean_dice, prog_bar=True)  # CHECK THIS
+        logger.info(
+            f"Val_epoch: Val_loss={val_mean_loss}; Val_dice={val_mean_dice};"
+        )
 
         self.dice_metric.reset()
-        self.dice_metric_batch.reset()
 
-        return loss
+        return {"val_mean_loss": val_mean_loss, "val_mean_dice": val_mean_dice}
 
     def forward(self, x):
         return self.net(x)
