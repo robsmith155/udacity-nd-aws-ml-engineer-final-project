@@ -16,4 +16,5 @@ scikit-learn
 PyYAML
 pre-commit
 natsort
+optuna
 --extra-index-url https://download.pytorch.org/whl/cu113

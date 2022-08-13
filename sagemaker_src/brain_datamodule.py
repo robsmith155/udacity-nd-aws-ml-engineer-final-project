@@ -134,7 +134,7 @@ class BrainMRIData(pl.LightningDataModule):
         self.batch_size = batch_size
         self.fast_mode = fast_mode
 
-        if self.fast_mode:
+        if self.fast_mode is True:
             self.dataloader_workers = 0
         else:
             self.dataloader_workers = self.num_workers

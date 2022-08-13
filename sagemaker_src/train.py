@@ -1,12 +1,17 @@
 import argparse
+import logging
 import os
 
 import pytorch_lightning as pl
-import torch
 from brain_datamodule import BrainMRIData, monai_transformations
-from brain_model import MyModel
-from monai.losses import DiceCELoss, DiceFocalLoss
+from brain_model import BrainMRIModel, BrainSegPredictionLogger
+from monai.losses import DiceFocalLoss
 from monai.networks.nets import UNet
+
+import wandb
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
+logger = logging.getLogger()
 
 
 # Function below copied from : https://github.com/awslabs/sagemaker-debugger/blob/master/examples/tensorflow/sagemaker_byoc/simple.py
@@ -23,19 +28,39 @@ def str2bool(v):
 
 def main(args):
 
-    train_transforms, val_transforms = monai_transformations(fast_mode=True)
+    if args.wandb_tracking:
+        wandb.finish()
+        if "secrets.env" not in os.listdir("."):
+            logger.warning(
+                "WARNING: wandb_tracking set to True but secrets file not found. Need to obtain API key from https://wandb.ai/authorize"
+            )
+            wandb.login()
+            wandb.sagemaker_auth(path=".")
+            logger.info("INFO: W&B secret key file added.")
+        else:
+            logger.info(
+                "INFO: W&B secrets file already exists. Skipping step."
+            )
+
+    train_transforms, val_transforms = monai_transformations(
+        fast_mode=args.fast_mode
+    )
+    logger.info("INFO: Created MONAI transformations.")
 
     brain_dm = BrainMRIData(
         train_dir=args.train_data_dir,
         val_dir=args.val_data_dir,
         cache_rate=1.0,
-        num_workers=8,
+        num_workers=args.num_workers,
         train_transforms=train_transforms,
         val_transforms=val_transforms,
         batch_size=args.batch_size,
         fast_mode=args.fast_mode,
     )
+    logger.info("INFO: Created BrainMRIData datamodule.")
+
     filters1 = args.num_filters_block_1
+
     unet = UNet(
         dimensions=2,
         in_channels=3,
@@ -53,18 +78,16 @@ def main(args):
     )
 
     loss_function = DiceFocalLoss(to_onehot_y=False, sigmoid=True)
-    optimizer = torch.optim.AdamW
 
-    model = MyModel(
+    model = BrainMRIModel(
         net=unet,
         criterion=loss_function,
         learning_rate=args.lr,
         batch_size=args.batch_size,
-        optimizer_class=optimizer,
-        # lr_scheduler=lr_scheduler
     )
+    logger.info("INFO: Created BrainMRIModel instance.")
 
-    # saves top-K checkpoints based on "val_loss" metric
+    # saves best model based on validation Dice score
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         save_top_k=1,
         monitor="val_mean_dice",
@@ -74,33 +97,72 @@ def main(args):
     )
 
     early_stop_callback = pl.callbacks.EarlyStopping(
-        monitor="val_mean_dice",
+        monitor="val_loss",
         min_delta=0.00,
         patience=10,
         verbose=False,
         mode="max",
+        check_finite=True,
     )
 
     swa_callback = pl.callbacks.StochasticWeightAveraging(swa_lrs=1e-2)
+    lr_callback = pl.callbacks.LearningRateMonitor(logging_interval="step")
 
-    trainer = pl.Trainer(
-        precision=16,
-        accelerator="gpu",
-        devices=1,
-        max_epochs=args.max_epochs,
-        default_root_dir=args.output_dir,
-        callbacks=[checkpoint_callback, early_stop_callback],
-        logger=pl.loggers.CSVLogger(save_dir=args.output_dir),
-        gradient_clip_val=0.5,
-    )
+    if args.wandb_tracking:
+        run_name = f"{args.wandb_run_base_name}_bs-{args.batch_size}_lr-{args.lr: .5f}_dropout-{args.dropout_rate: .2f}_filts1-{args.num_filters_block_1}"
+        wandb_logger = pl.loggers.WandbLogger(
+            project="brain-mri-segmentation", log_model=True, name=run_name
+        )
+        log_predictions_callback = BrainSegPredictionLogger()
+        wandb_logger.watch(model)
 
+        trainer = pl.Trainer(
+            precision=16,
+            accelerator="gpu",
+            devices=1,
+            max_epochs=args.max_epochs,
+            default_root_dir=args.output_dir,
+            logger=[wandb_logger],
+            callbacks=[
+                checkpoint_callback,
+                early_stop_callback,
+                swa_callback,
+                log_predictions_callback,
+                lr_callback,
+            ],
+            gradient_clip_val=0.5,
+        )
+    else:
+        pl_logger = pl.loggers.CSVLogger(save_dir="./lightning")
+
+        trainer = pl.Trainer(
+            precision=16,
+            accelerator="gpu",
+            devices=1,
+            max_epochs=args.max_epochs,
+            default_root_dir=args.output_dir,
+            logger=[pl_logger],
+            callbacks=[
+                checkpoint_callback,
+                early_stop_callback,
+                swa_callback,
+                lr_callback,
+            ],
+            gradient_clip_val=0.5,
+        )
+
+    logger.info("INFO: Starting model training...")
     trainer.fit(model, datamodule=brain_dm)
+    logger.info("INFO: Finished model training...")
+
+    if args.wandb_tracking:
+        wandb.finish()
 
 
 def model_fn(model_dir):
     model_path = os.path.join(model_dir, "model.ckpt")
 
-    model = MyModel.load_from_checkpoint(checkpoint_path=model_path)
+    model = BrainMRIModel.load_from_checkpoint(checkpoint_path=model_path)
     return model
 
 
@@ -168,6 +230,24 @@ if __name__ == "__main__":
         type=str2bool,
         default=True,
         help="Whether to run fast training mode (e.g. moving all data to GPU).",
+    )
+    parser.add_argument(
+        "--wandb_tracking",
+        type=str2bool,
+        default=False,
+        help="Whether to track experiments with Weights & Biases.",
+    )
+    parser.add_argument(
+        "--wandb_run_base_name",
+        type=str,
+        default="run",
+        help="Base name to use for W&B run name.",
+    )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=8,
+        help="Number of workers to use for DataLoader.",
     )
     args = parser.parse_args()  # check what parse_known_args() does
 

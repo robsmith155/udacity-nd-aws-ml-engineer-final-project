@@ -7,6 +7,9 @@ code/
 tmp*/
 tmp*
 
+# Ignore file containing W&B secret key
+secrets.env
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
