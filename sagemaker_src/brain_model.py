@@ -227,7 +227,7 @@ class BrainSegPredictionLogger(pl.Callback):
 
             names, imgs, y_true, y_pred = [], [], [], []
             for sample in val_samples:
-                slice_name = sample.split("/")[-1]
+                slice_name = sample["image"].split("/")[-1]
                 names.append(slice_name)
                 img = np.array(Image.open(sample["image"]))
                 mask = np.array(Image.open(sample["mask"]))[:, :, None]
