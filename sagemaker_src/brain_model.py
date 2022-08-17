@@ -1,9 +1,13 @@
 import logging
+import sys
+from typing import List, Optional, Union
 
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from monai.losses import DiceFocalLoss
 from monai.metrics import DiceMetric
+from monai.networks.nets import AttentionUnet, UNet
 from monai.transforms import (
     Activations,
     AsChannelFirst,
@@ -22,20 +26,80 @@ logger = logging.getLogger()
 
 
 class BrainMRIModel(pl.LightningModule):
-    def __init__(self, net, criterion, learning_rate, batch_size):
+    """PyTorch Lightning module to organize code for training model."""
+
+    def __init__(
+        self,
+        model_type: Optional[str] = "unet",
+        learning_rate: Optional[float] = 0.001,
+        batch_size: Optional[int] = 16,
+        dropout_rate: Optional[float] = 0.1,
+        num_filters_block_1: Optional[int] = 16,
+    ):
+        """_summary_
+
+        Args:
+            model_type (Optional[str], optional): Model architecture to use. Either 'unet' or 'unet-attention'. Defaults to 'unet'.
+            learning_rate (Optional[float], optional): Optimizer learning rate. Defaults to 0.001.
+            batch_size (Optional[int], optional): dataloader batch size. Defaults to 16.
+            dropout_rate (Optional[float], optional): Dropout rate. Defaults to 0.1.
+            num_filters_block_1 (Optional[int], optional): Number of filters to use in first block of model. Defaults to 16.
+        """
         super().__init__()
-        self.net = net
+        self.model_type = model_type
         self.lr = learning_rate
         self.batch_size = torch.FloatTensor(
             [batch_size]
-        )  # Needed due to issues with Lightning logging?
-        self.criterion = criterion
+        )  # Needed due to issues with Lightning logging
+        self.dropout_rate = dropout_rate
+        self.filters1 = num_filters_block_1
+        self.criterion = DiceFocalLoss(to_onehot_y=False, sigmoid=True)
         self.dice_metric = DiceMetric(
             include_background=True, reduction="mean"
         )
-        self.save_hyperparameters(ignore=["net", "criterion"])
+        self.net = self.create_net()
         self.example_input_array = torch.zeros(batch_size, 3, 256, 256)
         self.val_dice_all = []
+
+        self.save_hyperparameters(
+            ignore=["net", "criterion"]
+        )  # Training very slow if these ar enot ignored
+
+    def create_net(self):
+        """Create instance of network to be trained."""
+        channels = (
+            self.filters1,
+            self.filters1 * 2,
+            self.filters1 * 4,
+            self.filters1 * 8,
+            self.filters1 * 16,
+        )
+
+        if self.model_type == "unet":
+            network = UNet(
+                dimensions=2,
+                in_channels=3,
+                out_channels=1,
+                channels=channels,
+                strides=(2, 2, 2, 2),
+                num_res_units=2,
+                dropout=self.dropout_rate,
+            )
+        elif self.model_type == "unet-attention":
+            network = AttentionUnet(
+                spatial_dims=2,
+                in_channels=3,
+                out_channels=1,
+                channels=channels,
+                strides=(2, 2, 2, 2),
+                dropout=self.dropout_rate,
+            )
+        else:
+            logger.error(
+                "ERROR: You entered an invalid entry for model_type. Please enter either 'unet' or 'unet-attention'"
+            )
+            sys.exit()
+        return network
 
     def configure_optimizers(self):
 
@@ -105,6 +169,16 @@ class BrainMRIModel(pl.LightningModule):
 
 
 class BrainSegPredictionLogger(pl.Callback):
+    """Callback to log predictions in Weights & Biases.
+
+    This is a custom callback that will be triggered at the end of each validation epoch. If the validation score improved, predictions from
+    a sample of the validation data will be generated and logged as a Table in Weights & Biases.
+
+    Note: This method could be improved by passing the predicted data from the validation_epoch_end step. That way I don't need to load and run
+    the data again. However, I haven't figured out how to do that yet.
+
+    """
+
     def __init__(self):
         super().__init__()
 
@@ -112,6 +186,7 @@ class BrainSegPredictionLogger(pl.Callback):
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
     ) -> None:
 
+        # Check if validation score has improved
         output_pred_table = False
 
         if pl_module.current_epoch == 0:
@@ -120,7 +195,7 @@ class BrainSegPredictionLogger(pl.Callback):
             if pl_module.val_dice_all[-1] > max(pl_module.val_dice_all[:-1]):
                 output_pred_table = True
 
-        # Only output predictions if validation score has improved
+        # Output predictions if validation score has improved
         if output_pred_table:
             val_files = trainer.datamodule.val_files
             accessed_mapping = map(
@@ -150,8 +225,10 @@ class BrainSegPredictionLogger(pl.Callback):
                 ]
             )
 
-            imgs, y_true, y_pred = [], [], []
+            names, imgs, y_true, y_pred = [], [], [], []
             for sample in val_samples:
+                slice_name = sample.split("/")[-1]
+                names.append(slice_name)
                 img = np.array(Image.open(sample["image"]))
                 mask = np.array(Image.open(sample["mask"]))[:, :, None]
 
@@ -176,13 +253,27 @@ class BrainSegPredictionLogger(pl.Callback):
                 y_true.append(mask)
 
             # Log as W&B Table
-            columns = ["image", "ground truth", "prediction"]
+            columns = ["slice name", "image", "ground truth", "prediction"]
             data = [
-                [wandb.Image(x_i), wandb.Image(y_i), wandb.Image(y_pred)]
-                for x_i, y_i, y_pred in list(zip(imgs, y_true, y_pred))
+                [name, wandb.Image(x_i), wandb.Image(y_i), wandb.Image(y_pred)]
+                for name, x_i, y_i, y_pred in list(
+                    zip(names, imgs, y_true, y_pred)
+                )
             ]
             table_name = f"Epoch {pl_module.current_epoch} predictions (Mean val Dice score: {pl_module.val_dice_all[-1]: .3f})"
             trainer.logger.experiment.log(
                 {table_name: wandb.Table(data=data, columns=columns)},
                 commit=False,
+            )
+
+            del (
+                imgs,
+                y_true,
+                y_pred,
+                mask,
+                pred,
+                img,
+                data,
+                val_files,
+                val_samples,
             )
