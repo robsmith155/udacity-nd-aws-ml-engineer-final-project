@@ -18,6 +18,7 @@ import pathlib
 import sys
 from typing import List, Optional, Union
 
+import git
 import monai
 import pytorch_lightning as pl
 import torch
@@ -28,6 +29,16 @@ from optuna.integration import PyTorchLightningPruningCallback
 
 import optuna
 import wandb
+
+with open("./../config.yaml", "r") as f:
+    config = yaml.load(f, Loader=yaml.FullLoader)
+
+git_repo = git.Repo(".", search_parent_directories=True)
+PROJECT_ROOT_PATH = git_repo.working_dir
+DATA_ROOT_PATH = os.path.join(PROJECT_ROOT_PATH, config["DATA_DIR"])
+# sys.path.append('./../')
+sys.path.append(PROJECT_ROOT_PATH)
+
 from sagemaker_src.brain_datamodule import (
     BrainMRIDataOptuna,
     extract_input_filepaths,
@@ -35,12 +46,10 @@ from sagemaker_src.brain_datamodule import (
 )
 from sagemaker_src.brain_model import BrainMRIModel, BrainSegPredictionLogger
 from src.data import create_kaggle_token_file, setup_brain_mri_dataset
+from src.utils import generate_wandb_api_key
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
 logger = logging.getLogger()
-
-with open("./config.yaml", "r") as f:
-    config = yaml.load(f, Loader=yaml.FullLoader)
 
 
 def objective(
@@ -164,7 +173,7 @@ def objective(
 
         trial.set_user_attr("wandb_experiment_id", wandb_logger.experiment.id)
     else:
-        # Setup PyTorch Lightning Trainer object with Weights & Biases tracking
+        # Setup PyTorch Lightning Trainer object without Weights & Biases tracking
         trainer = pl.Trainer(
             precision=precision,
             accelerator=accelerator,
@@ -196,7 +205,7 @@ def wandb_model_artifact_callback(study, frozen_trial):
         logger.info(
             f"INFO: Current trial score of {frozen_trial.value} is better than all previous trials. Saving model checkpoint to Weights and Biases..."
         )
-        model_path = f"./optuna/{study.study_name}/trial_{frozen_trial.number}/model.ckpt"
+        model_path = f"./../optuna/{study.study_name}/trial_{frozen_trial.number}/model.ckpt"
         artifact = wandb.Artifact(
             name=f"model-{frozen_trial.user_attrs['wandb_experiment_id']}",
             type="model",
@@ -255,11 +264,13 @@ def run_optuna_hpo(
 ):
     # PREPARE DATASET
     create_kaggle_token_file()
-    setup_brain_mri_dataset(data_root_path=config["DATA_ROOT_PATH"])
+    setup_brain_mri_dataset(data_root_path=DATA_ROOT_PATH)
+    if wandb_tracking:
+        generate_wandb_api_key()
 
     # CREATE DATASETS
-    train_data_dir = f"{config['DATA_ROOT_PATH']}/brain-mri-dataset/train"
-    val_data_dir = f"{config['DATA_ROOT_PATH']}/brain-mri-dataset/val"
+    train_data_dir = f"{DATA_ROOT_PATH}/brain-mri-dataset/train"
+    val_data_dir = f"{DATA_ROOT_PATH}/brain-mri-dataset/val"
     train_folders = [f.path for f in os.scandir(train_data_dir) if f.is_dir()]
     val_folders = [f.path for f in os.scandir(val_data_dir) if f.is_dir()]
 
@@ -291,7 +302,7 @@ def run_optuna_hpo(
     optuna.logging.get_logger("optuna").addHandler(
         logging.StreamHandler(sys.stdout)
     )
-    storage_name = "sqlite:///{}.db".format(study_name)
+    storage_name = f"sqlite:///./../optuna/{study_name}.db"
 
     func = lambda trial: objective(
         trial,
@@ -336,5 +347,4 @@ def run_optuna_hpo(
 
 
 if __name__ == "__main__":
-
     typer.run(run_optuna_hpo)
