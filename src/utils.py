@@ -114,5 +114,5 @@ def generate_wandb_api_key():
     wandb.sagemaker_auth(path=f"{project_root_path}/sagemaker_src")
 
     logging.info(
-        "INFO: Weights and Biases secret API key saved to  f'{project_root_path}/sagemaker_src/secrets.env'"
+        f"INFO: Weights and Biases secret API key saved to {project_root_path}/sagemaker_src/secrets.env"
     )

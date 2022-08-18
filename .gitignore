@@ -10,6 +10,9 @@ tmp*
 # Ignore file containing W&B secret key
 secrets.env
 
+# GIF files output in notebooks directory
+notebooks/*.gif
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
