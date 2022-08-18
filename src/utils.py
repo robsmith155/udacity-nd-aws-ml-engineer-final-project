@@ -2,13 +2,16 @@ import logging
 import sys
 
 import boto3
+import git
 import sagemaker
 import yaml
+
+import wandb
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
 logger = logging.getLogger()
 
-with open("./config.yaml", "r") as f:
+with open("./../config.yaml", "r") as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
 
 
@@ -95,3 +98,21 @@ def set_sagemaker_settings(
     }
 
     return sagemaker_run_config
+
+
+def generate_wandb_api_key():
+    """Login to Weights and Biases and generate secrets.env key file for SageMaker jobs."""
+    # Login to W&B
+    login = wandb.login()
+    if login:
+        logging.info("INFO: Already logged into Weights and Biases...")
+
+    # Check for secrets.env file
+    git_repo = git.Repo(".", search_parent_directories=True)
+    project_root_path = git_repo.working_dir
+
+    wandb.sagemaker_auth(path=f"{project_root_path}/sagemaker_src")
+
+    logging.info(
+        "INFO: Weights and Biases secret API key saved to  f'{project_root_path}/sagemaker_src/secrets.env'"
+    )

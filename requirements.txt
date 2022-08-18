@@ -17,4 +17,6 @@ PyYAML
 pre-commit
 natsort
 optuna
+plotly
+gitpython
 --extra-index-url https://download.pytorch.org/whl/cu113

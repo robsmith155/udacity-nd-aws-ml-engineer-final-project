@@ -1,4 +1,4 @@
-DATA_ROOT_PATH: ./data
+DATA_DIR: data
 DATA_ZIP_FILENAME: lgg-mri-segmentation.zip
 DUMMY_IAM_ROLE: arn:aws:iam::111111111111:role/service-role/AmazonSageMaker-ExecutionRole-20200101T000001
 KAGGLE_DATASET: mateuszbuda/lgg-mri-segmentation
