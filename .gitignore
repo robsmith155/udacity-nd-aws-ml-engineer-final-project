@@ -2,6 +2,7 @@
 data/
 outputs/
 code/
+sagemaker-outputs/
 
 # Ignore any files or folders starting with tmp
 tmp*/

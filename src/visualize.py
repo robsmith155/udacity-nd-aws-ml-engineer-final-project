@@ -1,17 +1,22 @@
 import math
 import os
 import pathlib
-from typing import List, Union
+from typing import List, Optional, Union
 
 import matplotlib.pyplot as plt
 import monai
 import numpy as np
+import sagemaker
 import torch
 from monai.transforms import (
+    AsChannelFirst,
+    CenterSpatialCrop,
     Compose,
     EnsureChannelFirstd,
+    EnsureType,
     EnsureTyped,
     LoadImaged,
+    ScaleIntensityRange,
 )
 from monai.visualize import blend_images
 from PIL import Image
@@ -269,3 +274,88 @@ def plot_monai_pipeline_data(
         axes[1, i + 1].axis("off")
 
     fig.tight_layout()
+
+
+def plot_endpoint_prediction(
+    predictor: sagemaker.pytorch.model.PyTorchPredictor,
+    image_path: Union[str, pathlib.Path],
+    mask_path: Optional[Union[str, pathlib.Path]] = None,
+) -> None:
+    """Predict segmentation mask and plot results.
+
+    This function will submit the input image (in image_path) to the specified SageMaker endpoint provide dby the predictor.
+
+    It will then output the input MRI image with the predicted segmentation mask. If the true mask is available, this will also be plotted for comparison.
+
+    Args:
+        predictor (sagemaker.pytorch.model.PyTorchPredictor): Contains SageMaker endpoint to make prediction.
+        image_path (Union[str, pathlib.Path]): Path to input MRI image you want to predict the segmentation mask for.
+        mask_path (Optional[Union[str, pathlib.Path]], optional): Path to ground truth segmentation mask. Defaults to None.
+    """
+    # Load the image and mask data (if available) as a Numpy array
+    img = np.array(Image.open(image_path))
+
+    if mask_path is not None:
+        mask = np.array(Image.open(mask_path))[:, :, None]
+
+    # Send image data to endpoint to make prediction
+    pred = predictor.predict(img)
+
+    # Transform image and mask data
+    img_transforms = Compose(
+        [
+            AsChannelFirst(),
+            ScaleIntensityRange(
+                a_min=0.0,
+                a_max=255.0,
+                b_min=0.0,
+                b_max=1.0,
+            ),
+            CenterSpatialCrop(roi_size=(224, 224)),
+            EnsureType(data_type="tensor"),
+        ]
+    )
+
+    mask_transforms = Compose(
+        [
+            AsChannelFirst(),
+            CenterSpatialCrop(roi_size=(224, 224)),
+            EnsureType(data_type="tensor"),
+        ]
+    )
+
+    img = img_transforms(img)
+    if mask_path is not None:
+        mask = mask_transforms(mask)
+
+    img = img.detach().cpu().numpy()
+    img = np.transpose(img, (2, 1, 0))
+
+    if mask_path is not None:
+        mask = mask.detach().cpu().numpy()
+        mask = np.transpose(mask, (2, 1, 0))
+
+    # Plot results
+    if mask_path is not None:
+        plt.figure(figsize=(18, 6))
+        plt.subplot(1, 3, 1)
+        plt.title("MRI input")
+        plt.imshow(img)
+
+        plt.subplot(1, 3, 2)
+        plt.title("True mask")
+        plt.imshow(mask)
+
+        plt.subplot(1, 3, 3)
+        plt.title("Predicted mask")
+        plt.imshow(pred)
+
+    if mask_path is None:
+        plt.figure(figsize=(18, 6))
+        plt.subplot(1, 2, 1)
+        plt.title("MRI input")
+        plt.imshow(img)
+
+        plt.subplot(1, 2, 2)
+        plt.title("Predicted mask")
+        plt.imshow(pred)

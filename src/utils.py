@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 
 import boto3
@@ -13,6 +14,10 @@ logger = logging.getLogger()
 
 with open("./../config.yaml", "r") as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
+
+git_repo = git.Repo(".", search_parent_directories=True)
+PROJECT_ROOT_PATH = git_repo.working_dir
+PROJECT_DATA_PATH = os.path.join(PROJECT_ROOT_PATH, config["DATA_DIR"])
 
 
 def set_sagemaker_settings(
@@ -29,12 +34,12 @@ def set_sagemaker_settings(
         }  # Ensure full code locality, see: https://sagemaker.readthedocs.io/en/stable/overview.html#local-mode
         role_arn = "arn:aws:iam::111111111111:role/service-role/AmazonSageMaker-ExecutionRole-20200101T000001"  # Dummy ARN
         training_input_path = (
-            f"file://{config['DATA_ROOT_PATH']}/brain-mri-dataset/train"
+            f"file://{PROJECT_DATA_PATH}/brain-mri-dataset/train"
         )
         validation_input_path = (
-            f"file://{config['DATA_ROOT_PATH']}/brain-mri-dataset/val"
+            f"file://{PROJECT_DATA_PATH}/brain-mri-dataset/val"
         )
-        output_path = "file://outputs/"
+        output_path = f"file://{PROJECT_ROOT_PATH}/sagemaker_outputs/"
         use_spot_instances = False
         max_run = None
         max_wait = None
@@ -107,12 +112,9 @@ def generate_wandb_api_key():
     if login:
         logging.info("INFO: Already logged into Weights and Biases...")
 
-    # Check for secrets.env file
-    git_repo = git.Repo(".", search_parent_directories=True)
-    project_root_path = git_repo.working_dir
-
-    wandb.sagemaker_auth(path=f"{project_root_path}/sagemaker_src")
+    # Export secrets.env file for SageMaker
+    wandb.sagemaker_auth(path=f"{PROJECT_ROOT_PATH}/sagemaker_src")
 
     logging.info(
-        f"INFO: Weights and Biases secret API key saved to {project_root_path}/sagemaker_src/secrets.env"
+        f"INFO: Weights and Biases secret API key saved to {PROJECT_ROOT_PATH}/sagemaker_src/secrets.env"
     )
