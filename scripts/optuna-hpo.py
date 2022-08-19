@@ -30,15 +30,17 @@ from optuna.integration import PyTorchLightningPruningCallback
 import optuna
 import wandb
 
-with open("./../config.yaml", "r") as f:
-    config = yaml.load(f, Loader=yaml.FullLoader)
-
+# Resolve repo root path and add to path
 git_repo = git.Repo(".", search_parent_directories=True)
 PROJECT_ROOT_PATH = git_repo.working_dir
+
+with open(f"{PROJECT_ROOT_PATH}/config.yaml", "r") as f:
+    config = yaml.load(f, Loader=yaml.FullLoader)
+
 DATA_ROOT_PATH = os.path.join(PROJECT_ROOT_PATH, config["DATA_DIR"])
-# sys.path.append('./../')
 sys.path.append(PROJECT_ROOT_PATH)
 
+# Import functions from repo modules
 from sagemaker_src.brain_datamodule import (
     BrainMRIDataOptuna,
     extract_input_filepaths,
@@ -116,9 +118,7 @@ def objective(
         save_top_k=1,
         monitor="val_mean_dice",
         mode="max",
-        dirpath=os.path.join(
-            f"./optuna/{study_name}", "trial_{}".format(trial.number)
-        ),
+        dirpath=f"{PROJECT_ROOT_PATH}/optuna/{study_name}/trial_{trial.number}",
         filename="model",
     )
 
@@ -205,7 +205,7 @@ def wandb_model_artifact_callback(study, frozen_trial):
         logger.info(
             f"INFO: Current trial score of {frozen_trial.value} is better than all previous trials. Saving model checkpoint to Weights and Biases..."
         )
-        model_path = f"./../optuna/{study.study_name}/trial_{frozen_trial.number}/model.ckpt"
+        model_path = f"{PROJECT_ROOT_PATH}/optuna/{study.study_name}/trial_{frozen_trial.number}/model.ckpt"
         artifact = wandb.Artifact(
             name=f"model-{frozen_trial.user_attrs['wandb_experiment_id']}",
             type="model",
@@ -302,7 +302,7 @@ def run_optuna_hpo(
     optuna.logging.get_logger("optuna").addHandler(
         logging.StreamHandler(sys.stdout)
     )
-    storage_name = f"sqlite:///./../optuna/{study_name}.db"
+    storage_name = f"sqlite:///{PROJECT_ROOT_PATH}/optuna/{study_name}.db"
 
     func = lambda trial: objective(
         trial,

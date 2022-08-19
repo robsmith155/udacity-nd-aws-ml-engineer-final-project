@@ -12,11 +12,13 @@ import wandb
 logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
 logger = logging.getLogger()
 
-with open("./../config.yaml", "r") as f:
-    config = yaml.load(f, Loader=yaml.FullLoader)
-
+# Resolve repo root path and add to path
 git_repo = git.Repo(".", search_parent_directories=True)
 PROJECT_ROOT_PATH = git_repo.working_dir
+
+with open(f"{PROJECT_ROOT_PATH}/config.yaml", "r") as f:
+    config = yaml.load(f, Loader=yaml.FullLoader)
+
 PROJECT_DATA_PATH = os.path.join(PROJECT_ROOT_PATH, config["DATA_DIR"])
 
 

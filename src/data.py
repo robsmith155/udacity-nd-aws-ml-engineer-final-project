@@ -9,6 +9,7 @@ import sys
 from typing import List, Union
 from zipfile import ZipFile
 
+import git
 import sagemaker
 import yaml
 from natsort import natsorted
@@ -17,7 +18,11 @@ from sklearn.model_selection import train_test_split
 logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
 logger = logging.getLogger()
 
-with open("./../config.yaml", "r") as f:
+# Resolve repo root path and add to path
+git_repo = git.Repo(".", search_parent_directories=True)
+PROJECT_ROOT_PATH = git_repo.working_dir
+
+with open(f"{PROJECT_ROOT_PATH}/config.yaml", "r") as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
 
 kaggle_token_path = os.path.join(
