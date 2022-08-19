@@ -6,6 +6,7 @@ sagemaker_outputs/
 lightning_logs/
 optuna/
 wandb/
+artifacts/
 
 # Ignore any files or folders starting with tmp
 tmp*/
@@ -16,6 +17,9 @@ secrets.env
 
 # GIF files output in notebooks directory
 notebooks/*.gif
+
+# Ignore tar files
+*.tar.gz
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,9 +1,12 @@
 import logging
 import os
+import pathlib
 import sys
+from typing import Optional, Union
 
 import boto3
 import git
+import pandas as pd
 import sagemaker
 import yaml
 
@@ -120,3 +123,64 @@ def generate_wandb_api_key():
     logging.info(
         f"INFO: Weights and Biases secret API key saved to {PROJECT_ROOT_PATH}/sagemaker_src/secrets.env"
     )
+
+
+# Note the function below was copied from Weights and Biases: https://docs.wandb.ai/guides/track/public-api-guide
+def get_wandb_project_runs(
+    wandb_user: str, project: Optional[str] = "brain-mri-segmentation"
+) -> pd.DataFrame:
+    """Retrieves the run data from W&B project into Pandas DataFrame.
+
+    Args:
+        wandb_user (str): Your Weights and Biases account username
+        project (Optional[str], optional): Name of W&B project to fetch run data from. Defaults to 'brain-mri-segmentation'.
+
+    Returns:
+        pd.DataFrame: Pandas DataFrame containing project run information.
+    """
+    api = wandb.Api()
+    runs = api.runs(wandb_user + "/" + project)
+
+    summary_list, config_list, name_list = [], [], []
+    for run in runs:
+        # .summary contains the output keys/values for metrics like accuracy.
+        #  We call ._json_dict to omit large files
+        summary_list.append(run.summary._json_dict)
+
+        # .config contains the hyperparameters.
+        #  We remove special values that start with _.
+        config_list.append(
+            {k: v for k, v in run.config.items() if not k.startswith("_")}
+        )
+
+        # .name is the human-readable name of the run.
+        name_list.append(run.name)
+
+    runs_df = pd.DataFrame(
+        {"summary": summary_list, "config": config_list, "name": name_list}
+    )
+
+    return runs_df
+
+
+def upload_model_to_s3(
+    bucket_name: str,
+    local_model_path: Union[str, pathlib.Path],
+    key_prefix: Optional[str] = "optuna-model",
+) -> str:
+    """upload local model file to S3 bucket.
+
+    Args:
+        bucket_name (str): Name of S3 bucket where the model will be stored
+        local_model_path (Union[str, pathlib.Path]): Path to model file to be uploaded to S3.
+        key_prefix (str, optional): Prefix to add before file name. Defaults to 'optuna-model'.
+
+    Returns:
+        str: Path to S3 file created.
+    """
+    sagemaker_session = sagemaker.Session(default_bucket=bucket_name)
+    sagemaker_session.default_bucket(), sagemaker_session._region_name
+    bucket_model_path = sagemaker_session.upload_data(
+        path=local_model_path, bucket=bucket_name, key_prefix=key_prefix
+    )
+    return bucket_model_path
