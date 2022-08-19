@@ -111,7 +111,7 @@ def extract_kaggle_dataset(
     file_path = os.path.join(file_dir, filename)
     with ZipFile(file_path, "r") as zipObj:
         # Extract all zip file contents
-        logging.info(f"Starting extraction of data stored in {file_path}.")
+        logger.info(f"Starting extraction of data stored in {file_path}.")
         zipObj.extractall(path=file_dir)
         logger.info(f"Dataset extracted in {file_dir}")
 
@@ -131,10 +131,10 @@ def move_data_folders(
     """
     if os.path.exists(output_path) is False:
         os.makedirs(output_path)
-        logging.info(f"Created {output_path} directory.")
+        logger.info(f"Created {output_path} directory.")
     for folder in dataset_paths:
         shutil.move(folder, output_path)
-        logging.info(f"Moved {folder} to {output_path}.")
+        logger.info(f"Moved {folder} to {output_path}.")
 
 
 def extract_patient_filepaths(
@@ -209,13 +209,13 @@ def setup_brain_mri_dataset(data_root_path: Union[str, pathlib.Path]) -> None:
         )
         extract_kaggle_dataset(file_dir=data_root_path, filename=zip_filename)
     else:
-        logging.info("Data already downloaded from Kaggle. Skipping download.")
+        logger.info("Data already downloaded from Kaggle. Skipping download.")
 
     if not os.path.isdir(
         os.path.join(data_root_path, "brain-mri-dataset/train")
     ):
         # Split patients into training, validation and test folders
-        logging.info(
+        logger.info(
             "Starting splitting of data into train, val and test datasets."
         )
         brain_mri_dataset_path = os.path.join(
@@ -242,11 +242,11 @@ def setup_brain_mri_dataset(data_root_path: Union[str, pathlib.Path]) -> None:
             move_data_folders(
                 dataset_paths=dataset_paths, output_path=output_path
             )
-        logging.info(
+        logger.info(
             "Finished splitting into train, validation and test datasets."
         )
     else:
-        logging.info(
+        logger.info(
             "Training, validation and test datasets already prepared. Skipping step."
         )
 
@@ -261,22 +261,22 @@ def upload_data_to_s3(bucket_name, local_dataset_path, key_prefix="data"):
             )
         )
         if num_files == 7858:
-            logging.info(
+            logger.info(
                 f"Data already uploaded to s3://{bucket_name}/{key_prefix}. Skipping this step."
             )
         else:
-            logging.info(
+            logger.info(
                 f"Expected 7858 files, but found {num_files}. Starting data upload."
             )
             bucket_data_path = sagemaker_session.upload_data(
                 path=local_dataset_path, bucket=bucket_name, key_prefix="data"
             )
-            logging.info(f"Data has been uploaded to: {bucket_data_path}")
+            logger.info(f"Data has been uploaded to: {bucket_data_path}")
     except:  # BETTER TO PUT SPECIFIC NoSuchBucket error, but not sure how?
-        logging.info(
+        logger.info(
             f"Bucket named {bucket_name} doesnt exist. Starting upload to S3"
         )
         bucket_data_path = sagemaker_session.upload_data(
             path=local_dataset_path, bucket=bucket_name, key_prefix="data"
         )
-        logging.info(f"Data has been uploaded to: {bucket_data_path}")
+        logger.info(f"Data has been uploaded to: {bucket_data_path}")
