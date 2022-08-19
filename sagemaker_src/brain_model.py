@@ -127,6 +127,8 @@ class BrainMRIModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
+        if self.current_epoch == 0:
+            wandb.define_metric("val_mean_dice", summary="max")
         val_batch_size = len(batch)
         images = batch["image"]
         y_hat, y_true = self.infer_batch(batch)
