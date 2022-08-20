@@ -128,7 +128,7 @@ The first two notebooks can be run from a SageMaker Notebook instance. To set th
   <img src="./imgs/notebook-instance-clone-repo.png" width=1000/>
 </p>
 
-Now you can open the first notebook in the `notebooks` folder. Note that when you run these notebooks, you will need to uncomment the first code cell in the notebooks to install the missing dependencies.
+Now you can open the first notebook in the `notebooks` folder. When opened, you should select the `conda_pytorch_p38` kernel. Note that when you run these notebooks, you will need to uncomment the first code cell in the notebooks to install the missing dependencies.
 
 ### Developers
 If you want to further develop the code, it is recommended to setup [pre-commit](https://pre-commit.com/) which will run linting and formatting checks prior to committing code changes. With the virtual environment active, make sure you're in the root directory of your clone of the project repo. Then run:
@@ -206,6 +206,4 @@ This produced a model with a Dice score of 0.839 on the validation dataset. Exam
   <img src="./imgs/best-model-val-results.png" width=1000/>
 </p>
 
-The Weights and Biases page for the corresponding run can be viewed below or following [this](https://wandb.ai/robsmith155/brain-mri-segmentation/runs/mwk66y5o?workspace=user-robsmith155) link which shows training metrics, system information and also contains a copy of the model.
-
-<iframe src="https://wandb.ai/robsmith155/brain-mri-segmentation/runs/mwk66y5o?workspace=user-robsmith155" width="1200" height="1000"></iframe>
+The Weights and Biases page for the corresponding run can be viewed at [this](https://wandb.ai/robsmith155/brain-mri-segmentation/runs/mwk66y5o?workspace=user-robsmith155) link which shows training metrics, system information and also contains a copy of the model.
