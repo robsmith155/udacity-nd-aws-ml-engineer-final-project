@@ -56,6 +56,7 @@ class BrainMRIModel(pl.LightningModule):
         self.dropout_rate = dropout_rate
         self.filters1 = num_filters_block_1
         self.wandb_tracking = wandb_tracking
+        self.criterion = DiceFocalLoss(to_onehot_y=False, sigmoid=True)
         self.dice_metric = DiceMetric(
             include_background=True, reduction="mean"
         )
