@@ -172,7 +172,7 @@ def _combine_mri_mask(data):
 def make_patient_data_gif(
     patient_dir_path: Union[str, pathlib.Path],
     save_dir: Union[str, pathlib.Path] = ".",
-) -> None:
+) -> str:
     """Create GIF of patient MRI or segmentation mask data.
 
     Args:
@@ -195,6 +195,7 @@ def make_patient_data_gif(
         loop=0,
     )
     print(f"GIF file output to {output_path}.")
+    return output_path
 
 
 def plot_monai_transformed_data(
@@ -277,7 +278,7 @@ def plot_monai_pipeline_data(
 
 
 def plot_endpoint_prediction(
-    predictor: sagemaker.pytorch.model.PyTorchPredictor,
+    predictor,
     image_path: Union[str, pathlib.Path],
     mask_path: Optional[Union[str, pathlib.Path]] = None,
 ) -> None:
