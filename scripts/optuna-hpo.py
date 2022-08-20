@@ -111,6 +111,7 @@ def objective(
         batch_size=batch_size,
         num_filters_block_1=num_filters_block_1,
         dropout_rate=dropout_rate,
+        wandb_tracking=wandb_tracking,
     )
 
     # Save best model based on validation Dice score

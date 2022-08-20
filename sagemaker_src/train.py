@@ -84,6 +84,7 @@ def main(args):
         batch_size=args.batch_size,
         num_filters_block_1=args.num_filters_block_1,
         dropout_rate=args.dropout_rate,
+        wandb_tracking=args.wandb_tracking,
     )
 
     # saves best model based on validation Dice score

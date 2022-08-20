@@ -35,6 +35,7 @@ class BrainMRIModel(pl.LightningModule):
         batch_size: Optional[int] = 16,
         dropout_rate: Optional[float] = 0.1,
         num_filters_block_1: Optional[int] = 16,
+        wandb_tracking: Optional[bool] = False,
     ):
         """_summary_
 
@@ -44,6 +45,7 @@ class BrainMRIModel(pl.LightningModule):
             batch_size (Optional[int], optional): dataloader batch size. Defaults to 16.
             dropout_rate (Optional[float], optional): Dropout rate. Defaults to 0.1.
             num_filters_block_1 (Optional[int], optional): Number of filters to use in first block of model. Defaults to 16.
+            wandb_tracking (Optional[bool]): Whether tracking with Weights and Biases. Default is False.
         """
         super().__init__()
         self.model_type = model_type
@@ -53,7 +55,7 @@ class BrainMRIModel(pl.LightningModule):
         )  # Needed due to issues with Lightning logging
         self.dropout_rate = dropout_rate
         self.filters1 = num_filters_block_1
-        self.criterion = DiceFocalLoss(to_onehot_y=False, sigmoid=True)
+        self.wandb_tracking = wandb_tracking
         self.dice_metric = DiceMetric(
             include_background=True, reduction="mean"
         )
@@ -127,7 +129,7 @@ class BrainMRIModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        if self.current_epoch == 0:
+        if (self.current_epoch == 0) and (self.wandb_tracking is True):
             wandb.define_metric("val_mean_dice", summary="max")
         val_batch_size = len(batch)
         images = batch["image"]
