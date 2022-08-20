@@ -303,6 +303,7 @@ def run_optuna_hpo(
     optuna.logging.get_logger("optuna").addHandler(
         logging.StreamHandler(sys.stdout)
     )
+    os.makedirs(f"{PROJECT_ROOT_PATH}/optuna", exist_ok=True)
     storage_name = f"sqlite:///{PROJECT_ROOT_PATH}/optuna/{study_name}.db"
 
     func = lambda trial: objective(
